@@ -6,12 +6,6 @@
 
 using namespace std;
 
-class Threading {
-public:
-	static int floor_thread(void*) {
-		
-	}
-};
 
 class Data {
 public:
@@ -57,6 +51,7 @@ public:
 	
 };
 
+
 class Field {
 public:
 	bool wall;
@@ -64,15 +59,31 @@ public:
 	static const int width = 64;
 	static const int height = 64;
 	Field() {
-		size = 64;
+		size = 0;
 		wall = false;
 	}
 };
 
+typedef struct raydata_t {
+	
+	bool operator==(const raydata_t& rd) const {
+		return field_pos.x == rd.field_pos.x && field_pos.y == rd.field_pos.y;
+	}
+	
+	bool operator<(const raydata_t& rd) const {
+		return distance < rd.distance;
+	}
+	SDL_Rect field_pos;
+	int x_pos;
+	int distance;
+	Field* field;
+	
+}raydata_t;
+
 class Map {
 public:
-	static const int field_num_x = 50;
-	static const int field_num_y = 50;
+	static const int field_num_x = 20;
+	static const int field_num_y = 20;
 	Field map[field_num_x][field_num_y];
 };
 
@@ -113,17 +124,6 @@ public:
 	
 	void move(Map& m);
 	bool check_wall_collision(SDL_Rect* r, Map& m);
-};
-
-
-class RayData {
-public:
-	Field* field;
-	SDL_Rect coord;
-	bool wall_found;
-	bool horizontal_wall;
-	int distance;
-	int offset;
 };
 
 
