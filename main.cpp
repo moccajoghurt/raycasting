@@ -131,12 +131,14 @@ int main(int argc, char** argv) {
 		} else if (1000/ms_per_frame > 60) {
 			game_delay+=2;
 		}
-		//cout << 1000/Debugger::ms_per_frame << " " << Debugger::ms_per_frame <<endl;
+		
 		Debugger::draw_info(renderer, 1000/ms_per_frame, ms_per_frame, game_delay);
+		//Debugger::draw_absolute_pos(p, renderer);
+		
 		SDL_RenderSetScale(renderer, screen_multiplier, screen_multiplier);
 		SDL_RenderPresent(renderer);
 		SDL_WarpMouseInWindow(window, Data::render_size_x/2, Data::render_size_y/2);
-		//Debugger::current_frame++;
+		
 		SDL_Delay(game_delay);
 	}
 	
@@ -324,7 +326,6 @@ void cast_rays(Player& p, Map& m, Textures& t, SDL_Renderer* renderer) {
 		
 		int last_field_height = 0;
 		int last_y_wallpos = Data::render_size_y;
-		int last_wallfloor_height = Data::render_size_y;
 		for (vector<raydata_t>::iterator it = intersections.begin(); it != end; it++) {
 			
 			
@@ -364,19 +365,13 @@ void cast_rays(Player& p, Map& m, Textures& t, SDL_Renderer* renderer) {
 				int floor_draw_length = last_y_wallpos;
 				
 				SDL_Rect plane_pixel;
-				if (wall_found) {
-					
-					plane_pixel.y = r_dest.y + r_dest.h;
-					
-				} else {
-					int height = (double)last_field_height/it->distance * p.dist_player_to_plane + 1;
-					int y = (double)p.height / ((double)it->distance / p.dist_player_to_plane) + p.plane_y/2 - height;
-					if (y > last_y_wallpos) continue;
-					plane_pixel.y = y;
-					last_y_wallpos = y;
-					
-				}
 				
+				int last_field_plane_height = (double)last_field_height/it->distance * p.dist_player_to_plane + 1;
+				int last_field_rear_edge_plane_y_pos = (double)p.height / ((double)it->distance / p.dist_player_to_plane) + p.plane_y/2 - last_field_plane_height;
+				plane_pixel.y = last_field_rear_edge_plane_y_pos;
+				last_y_wallpos = last_field_rear_edge_plane_y_pos < floor_draw_length ? last_field_rear_edge_plane_y_pos : last_y_wallpos;
+				
+				if (wall_found) plane_pixel.y++; //overdrawing prevention
 				
 				plane_pixel.w = 1;
 				plane_pixel.h = 1;
@@ -387,7 +382,6 @@ void cast_rays(Player& p, Map& m, Textures& t, SDL_Renderer* renderer) {
 				
 				
 				for (int y = plane_pixel.y; y < floor_draw_length; y++) {
-					
 					int straight_distance_to_floor = ((double)(p.height - last_field_height)/ (y - Player::plane_y/2)) * p.dist_player_to_plane;
 					int cos_angle = p.angle - current_angle;
 					cos_angle = cos_angle < 0 ? -cos_angle : cos_angle;
@@ -411,7 +405,7 @@ void cast_rays(Player& p, Map& m, Textures& t, SDL_Renderer* renderer) {
 			
 			last_y_wallpos = wall_found ? r_dest.y : last_y_wallpos;
 			last_field_height = it->field->size;
-			last_wallfloor_height = wall_found ? r_dest.y + r_dest.h : last_wallfloor_height;
+			
 		}
 		
 		/*
