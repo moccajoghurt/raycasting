@@ -210,6 +210,8 @@ public:
 	
 	static void draw_absolute_pos(Player& p, SDL_Renderer* renderer) {
 		
+		SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
+		SDL_RenderClear(renderer);
 		SDL_SetRenderDrawColor(renderer, 0, 0, 0, 0);
 		for (int i = 0; i < Map::field_num_x; i++) {
 			for (int n = 0; n < Map::field_num_y; n++) {
@@ -226,6 +228,7 @@ public:
 		r.h = 8;
 		SDL_SetRenderDrawColor(renderer, 0, 255, 0, 0);
 		SDL_RenderFillRect(renderer, &r);
+		
 	}
 	
 };
