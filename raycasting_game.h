@@ -17,6 +17,8 @@ public:
 	static const int render_size_x = 320;
 	static const int render_size_y = 200;
 	
+	static bool shader_activated;
+	
 	static void preload_math_vars() {
 		long absolute = 0;
 		for (double d = 0; d < 360; d+= 0.0001) {
@@ -32,19 +34,24 @@ public:
 	
 	static double get_cos_val(double val) {
 		double buf = val < 0 ? -val : val;
-		double d = cos_vals[(long)(buf*10000)];
+		//double d = cos_vals[(long)(buf*10000)];
+		double d = cos(buf * M_PI / 180);
 		return d;
 	}
 	
 	static double get_sin_val(double val) {
 		double buf = val < 0 ? -val : val;
-		double d = sin_vals[(long)(buf*10000)];
+		//double d = sin_vals[(long)(buf*10000)];
+		double d = sin(buf * M_PI / 180);
 		return d;
 	}
 	
 	static double get_tan_val(double val) {
 		double buf = val < 0 ? -val : val;
-		double d = tan_vals[(long)(buf*10000)];
+		//double d = tan_vals[(long)(buf*10000)];
+		double d = tan(buf * M_PI / 180);
+		if (buf * M_PI / 180 == 90) {d = tan(90.1 * M_PI / 180);}
+		else if (buf * M_PI / 180 == 270) {d = tan(270.1 * M_PI / 180);}
 		if (val < 0) return -d;
 		else return d;
 	}
@@ -75,7 +82,7 @@ typedef struct raydata_t {
 	}
 	SDL_Rect field_pos;
 	int x_pos;
-	int distance;
+	double distance;
 	Field* field;
 	
 }raydata_t;
@@ -95,7 +102,7 @@ public:
 	static int plane_y;
 	static const int field_of_view = 60;
 	static const int view_depth = 50;
-	static const int view_distance = 5000;
+	static const int view_distance = 3000;
 	
 	bool shooting;
 	bool reloading;
@@ -104,8 +111,8 @@ public:
 	bool key_s;
 	bool key_d;
 	int dist_player_to_plane;
-	int pos_x;
-	int pos_y;
+	double pos_x;
+	double pos_y;
 	double angle;
 	int last_direction;
 	
@@ -116,9 +123,9 @@ public:
 		key_a = false;
 		key_s = false;
 		key_d = false;
-		angle = 170;
-		pos_x = Field::width * 2;
-		pos_y = Field::height * 2;
+		angle = 230;
+		pos_x = Field::width * 4;
+		pos_y = Field::height * 4;
 		last_direction = 0;
 	}
 	
@@ -185,7 +192,8 @@ public:
 	}
 	
 	static void draw_map_overview(Player& p, SDL_Renderer* renderer) {
-		
+		SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
+		SDL_RenderClear(renderer);
 		//draw grid
 		SDL_SetRenderDrawColor(renderer, 0, 0, 0, 0);
 		for (int i = 0; i < Map::field_num_x; i++) {
@@ -210,8 +218,8 @@ public:
 	
 	static void draw_absolute_pos(Player& p, SDL_Renderer* renderer) {
 		
-		SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
-		SDL_RenderClear(renderer);
+		//SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
+		//SDL_RenderClear(renderer);
 		SDL_SetRenderDrawColor(renderer, 0, 0, 0, 0);
 		for (int i = 0; i < Map::field_num_x; i++) {
 			for (int n = 0; n < Map::field_num_y; n++) {
@@ -490,6 +498,63 @@ public:
 	SDL_Color get_texture_color(vector<SDL_Color>& vec, SDL_Rect* rect) {
 		SDL_Color c = vec[rect->y * Field::width + rect->x];
 		return c;
+	}
+	
+	void shade_pixel(Uint32* pixel, int distance) {
+		
+		Uint32 temp;
+		Uint8 red, green, blue, alpha;
+		
+		//red
+		red = *pixel >> 24;
+		
+		//green
+		temp = *pixel << 8;
+		green = temp >> 24;
+		
+		//blue
+		temp = *pixel << 16;
+		blue = temp >> 24;
+		
+		//alpha
+		temp = *pixel << 24;
+		alpha = temp >> 24;
+		
+		
+		double old_range = Player::view_distance - 1;
+		double new_range = 3; 
+		double dist_weight = (((distance - 1) * new_range) / old_range) + 1;
+		
+		//cout <<  NewValue << endl;
+		
+		
+		//double distance_weight = distance / 100 < 1 ? 1 : distance / 500;
+		
+		red /= dist_weight;
+		green /= dist_weight;
+		blue /= dist_weight;
+		alpha /= dist_weight;
+	
+		
+		//red
+		temp = red;
+		temp <<= 24;
+		*pixel = temp;
+		
+		//green
+		temp = green;
+		temp <<= 16;
+		*pixel += temp;
+		
+		//blue
+		temp = blue;
+		temp <<= 8;
+		*pixel += temp;
+		
+		//alpha
+		temp = alpha;
+		*pixel += temp;
+		
 	}
 	
 };
