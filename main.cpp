@@ -24,16 +24,18 @@ long Debugger::time_stamp_old = 0;
 long Debugger::ms_per_frame = 50;
 long Debugger::current_frame = 0;
 TTF_Font* Debugger::font = NULL;
-double Data::cos_vals[3600000];
-double Data::sin_vals[3600000];
-double Data::tan_vals[3600000];
+//double Data::cos_vals[3600000];
+//double Data::sin_vals[3600000];
+//double Data::tan_vals[3600000];
 int Player::plane_y = 200;
 int Player::height = 32;
+
+bool Data::shader_activated = true;
 
 int main(int argc, char** argv) {
 	
 	
-	Data::preload_math_vars();
+	//Data::preload_math_vars();
 	
 	Debugger db;
 	TTF_Init();
@@ -67,7 +69,7 @@ int main(int argc, char** argv) {
 	SDL_Event e;
 	
 	renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED);
-	SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+	//SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
 	
 	Textures t(renderer);
 	
@@ -78,16 +80,16 @@ int main(int argc, char** argv) {
 	
 	for (int i = 0; i < m.field_num_x; i++) {
 		m.map[i][0].wall = true;
-		m.map[i][0].size = 64;
+		m.map[i][0].size = 128;
 		m.map[0][i].wall = true;
-		m.map[0][i].size = 64;
+		m.map[0][i].size = 128;
 		
 		if (i == m.field_num_x - 1) {
 			for (int n = 0; n < m.field_num_x; n++) {
 				m.map[i][n].wall = true;
-				m.map[i][n].size = 64;
+				m.map[i][n].size = 128;
 				m.map[n][i].wall = true;
-				m.map[n][i].size = 64;
+				m.map[n][i].size = 128;
 			}
 		}
 	}
@@ -107,6 +109,7 @@ int main(int argc, char** argv) {
 	m.map[2][6].size = 50;
 	
 	
+	
 	SDL_ShowCursor(SDL_FALSE);
 	SDL_WarpMouseInWindow(window, Data::render_size_x/2, Data::render_size_y/2);
 	int game_delay = 20;
@@ -120,7 +123,7 @@ int main(int argc, char** argv) {
 		
 		t.determine_current_weapon(renderer, p);
 		cast_rays(p, m, t, renderer);
-		t.draw_current_weapon(renderer);
+		//t.draw_current_weapon(renderer);
 		
 		Debugger::time_stamp_old = Debugger::time_stamp;
 		Debugger::time_stamp = SDL_GetTicks();
@@ -229,111 +232,124 @@ void cast_rays(Player& p, Map& m, Textures& t, SDL_Renderer* renderer) {
 	Uint32 floor_pixels[Data::render_size_x * Data::render_size_y];
 	memset(floor_pixels, 0, Data::render_size_x * Data::render_size_y * sizeof(Uint32));
 	
+	bool use_last_ray = false;
 	for (int x = 0; x < Player::plane_x; x++) {
 		
 		vector<raydata_t> intersections;
 		
 		//find first horizontal grid
-		SDL_Rect first_grid_horizontal;
+		double first_grid_horizontal_x;
+		double first_grid_horizontal_y;
 		if (current_angle > 180) {
-			first_grid_horizontal.y = (p.pos_y / Field::width) * Field::width + Field::width;
+			first_grid_horizontal_y = ((int)p.pos_y / Field::width) * Field::width + Field::width;
 		} else {
-			first_grid_horizontal.y = (p.pos_y / Field::width) * Field::width - 1;
+			first_grid_horizontal_y = ((int)p.pos_y / Field::width) * Field::width - 1;
 		}
 		
-		first_grid_horizontal.x = p.pos_x + (p.pos_y - first_grid_horizontal.y) / Data::get_tan_val( 180 - current_angle);
+		first_grid_horizontal_x = p.pos_x + (p.pos_y - first_grid_horizontal_y) / Data::get_tan_val( 180 - current_angle);
 		
 		
 		//calculate horizontal stepsize
-		SDL_Rect grid_stepsize_horizontal;
+		double grid_stepsize_horizontal_x;
+		double grid_stepsize_horizontal_y;
 		if (current_angle > 180) {
-			grid_stepsize_horizontal.y = Field::width;
-			grid_stepsize_horizontal.x = Field::width / Data::get_tan_val(current_angle - 180);
+			grid_stepsize_horizontal_y = Field::width;
+			grid_stepsize_horizontal_x = Field::width / Data::get_tan_val(current_angle - 180);
 		} else {
-			grid_stepsize_horizontal.y = -Field::width;
-			grid_stepsize_horizontal.x = Field::width / Data::get_tan_val(180 - current_angle);
+			grid_stepsize_horizontal_y = -Field::width;
+			grid_stepsize_horizontal_x = Field::width / Data::get_tan_val(180 - current_angle);
 		}
 		
 		//find first vertical grid
-		SDL_Rect first_grid_vertical;
+		double first_grid_vertical_x;
+		double first_grid_vertical_y;
 		if (current_angle < 90 || current_angle > 270) {
-			first_grid_vertical.x = (p.pos_x / Field::width) * Field::width - 1;
-			first_grid_vertical.y = p.pos_y + (p.pos_x - first_grid_vertical.x) * Data::get_tan_val(180 - current_angle);
+			first_grid_vertical_x = ((int)p.pos_x / Field::width) * Field::width - 1;
+			first_grid_vertical_y = p.pos_y + (p.pos_x - first_grid_vertical_x) * Data::get_tan_val(180 - current_angle);
 		} else {
-			first_grid_vertical.x = (p.pos_x / Field::width) * Field::width + Field::width;
-			first_grid_vertical.y = p.pos_y + (p.pos_x - first_grid_vertical.x) * Data::get_tan_val(180 - current_angle);
+			first_grid_vertical_x = ((int)p.pos_x / Field::width) * Field::width + Field::width;
+			first_grid_vertical_y = p.pos_y + (p.pos_x - first_grid_vertical_x) * Data::get_tan_val(180 - current_angle);
 		}
 		
 		
 		//calculate vertical stepsize
-		SDL_Rect grid_stepsize_vertical;
+		double grid_stepsize_vertical_x;
+		double grid_stepsize_vertical_y;
 		if (current_angle < 90 || current_angle > 270) {
-			grid_stepsize_vertical.x = -Field::width;
-			grid_stepsize_vertical.y = -Field::width * Data::get_tan_val(current_angle - 180);
+			grid_stepsize_vertical_x = -Field::width;
+			grid_stepsize_vertical_y = -Field::width * Data::get_tan_val(current_angle - 180);
 		} else {
-			grid_stepsize_vertical.x = Field::width;
-			grid_stepsize_vertical.y = Field::width * Data::get_tan_val(current_angle - 180);
+			grid_stepsize_vertical_x = Field::width;
+			grid_stepsize_vertical_y = Field::width * Data::get_tan_val(current_angle - 180);
 		}
 		
 		
 		//calculate grid steps
-		SDL_Rect current_grid_horizontal = first_grid_horizontal;
-		SDL_Rect current_grid_vertical = first_grid_vertical;
+		double current_grid_horizontal_x = first_grid_horizontal_x;
+		double current_grid_horizontal_y = first_grid_horizontal_y;
+		double current_grid_vertical_x = first_grid_vertical_x;
+		double current_grid_vertical_y = first_grid_vertical_y;
 		for (int i = 0; i < Player::view_depth; i++) {
 			
-			if (current_grid_horizontal.x >= 0 && current_grid_horizontal.x / Field::width < m.field_num_x && current_grid_horizontal.y >= 0 && current_grid_horizontal.y / Field::height < m.field_num_y) {
+			if (current_grid_horizontal_x >= 0 && current_grid_horizontal_x / Field::width < m.field_num_x && current_grid_horizontal_y >= 0 && current_grid_horizontal_y / Field::height < m.field_num_y) {
 				
 				SDL_Rect field_pos;
-				field_pos.x = current_grid_horizontal.x / Field::width;
-				field_pos.y = current_grid_horizontal.y / Field::width;
+				field_pos.x = current_grid_horizontal_x / Field::width;
+				field_pos.y = current_grid_horizontal_y / Field::width;
 				
-				int distance = sqrt(pow(p.pos_x - current_grid_horizontal.x, 2) + pow(p.pos_y - current_grid_horizontal.y, 2));
+				
+				double distance = sqrt(pow(p.pos_x - current_grid_horizontal_x, 2) + pow(p.pos_y - current_grid_horizontal_y, 2));
 				distance *= Data::get_cos_val(p.angle - current_angle);
-				distance = distance == 0 ? 1 : distance; //division by 0 forbidden
+				distance = distance < 1 ? 1 : distance; //division by 0 forbidden
 				
-				raydata_t rd = {field_pos, current_grid_horizontal.x, distance, &m.map[field_pos.x][field_pos.y]};
+				raydata_t rd = {field_pos, current_grid_horizontal_x, distance, &m.map[field_pos.x][field_pos.y]};
 				
 				intersections.push_back(rd);
+				
+				
 			}
 			
-			if (current_grid_vertical.x >= 0 && current_grid_vertical.x / Field::width < m.field_num_x && current_grid_vertical.y >= 0 && current_grid_vertical.y / Field::height < m.field_num_y) {
+			if (current_grid_vertical_x >= 0 && current_grid_vertical_x / Field::width < m.field_num_x && current_grid_vertical_y >= 0 && current_grid_vertical_y / Field::height < m.field_num_y) {
 					
 					SDL_Rect field_pos;
-					field_pos.x = current_grid_vertical.x / Field::width;
-					field_pos.y = current_grid_vertical.y / Field::width;
+					field_pos.x = current_grid_vertical_x / Field::width;
+					field_pos.y = current_grid_vertical_y / Field::width;
 					
-					int distance = sqrt(pow(p.pos_x - current_grid_vertical.x, 2) + pow(p.pos_y - current_grid_vertical.y, 2));
+					
+					double distance = sqrt(pow(p.pos_x - current_grid_vertical_x, 2) + pow(p.pos_y - current_grid_vertical_y, 2));
 					distance *= Data::get_cos_val(p.angle - current_angle);
-					distance = distance == 0 ? 1 : distance; //division by 0 forbidden
+					distance = distance < 1 ? 1 : distance; //division by 0 forbidden
 					
-					raydata_t rd = {field_pos, current_grid_vertical.y, distance, &m.map[field_pos.x][field_pos.y]};
+					raydata_t rd = {field_pos, current_grid_vertical_y, distance, &m.map[field_pos.x][field_pos.y]};
 					
 					intersections.push_back(rd);
-				}
+					
+			}
 			
-			current_grid_horizontal.x += grid_stepsize_horizontal.x;
-			current_grid_horizontal.y += grid_stepsize_horizontal.y;
+			current_grid_horizontal_x += grid_stepsize_horizontal_x;
+			current_grid_horizontal_y += grid_stepsize_horizontal_y;
 			
-			current_grid_vertical.x += grid_stepsize_vertical.x;
-			current_grid_vertical.y += grid_stepsize_vertical.y;
+			current_grid_vertical_x += grid_stepsize_vertical_x;
+			current_grid_vertical_y += grid_stepsize_vertical_y;
 		}
 		
 		// operator < used by default, shortest distance chosen
 		std::sort( intersections.begin(), intersections.end() );
 		
-		vector<raydata_t>::iterator end = std::unique( intersections.begin(), intersections.end() );
+		vector<raydata_t>::iterator end = intersections.end();//std::unique( intersections.begin(), intersections.end() );
 		
 		
 		int last_field_height = 0;
-		int last_y_wallpos = Data::render_size_y;
+		double last_y_wallpos = Data::render_size_y;
 		for (vector<raydata_t>::iterator it = intersections.begin(); it != end; it++) {
 			
 			
 			SDL_Rect r_dest;
 			SDL_Rect r_src;
 			
+			
 			r_dest.h = (double)it->field->size/it->distance * p.dist_player_to_plane + 1;
-			r_dest.y = (double)p.height / ((double)it->distance / p.dist_player_to_plane) + p.plane_y/2 - r_dest.h;
+			r_dest.y = (double)p.height / ((double)it->distance / p.dist_player_to_plane) + (double)p.plane_y/2 - r_dest.h;
 			r_dest.w = 1;
 			r_dest.x = x;
 			
@@ -342,9 +358,11 @@ void cast_rays(Player& p, Map& m, Textures& t, SDL_Renderer* renderer) {
 			r_src.y = 0;
 			r_src.x = it->x_pos % Field::width;
 			
+			
+			
 			// draw wall
 			bool wall_found = false;
-			if (it->field->size > 0 && r_dest.y < last_y_wallpos) {
+			if (it->field->size > 0 && r_dest.y < last_y_wallpos && &m.map[(int)p.pos_x][(int)p.pos_y] != it->field) {
 				
 				
 				if (r_dest.y + r_dest.h > last_y_wallpos) {
@@ -353,25 +371,34 @@ void cast_rays(Player& p, Map& m, Textures& t, SDL_Renderer* renderer) {
 					r_src.h *= percentage;
 				}
 				
+				
+				if (Data::shader_activated) {
+					int old_range = Player::view_distance - 1;
+					int new_range = 255 - 0; 
+					Uint8 dist_weight = 255 - (((it->distance - 0) * new_range) / old_range) + 0;
+					
+					SDL_SetTextureColorMod(t.forest_wall, dist_weight, dist_weight, dist_weight);
+				}
+				
 				SDL_RenderCopy(renderer, t.forest_wall, &r_src, &r_dest);
 				
 				wall_found = true;
 			}
 			
+			
+			
 			//draw floor
-			if (it->field->size != last_field_height) {
+			if (it->field->size != last_field_height || wall_found) {
 				
-				
-				int floor_draw_length = last_y_wallpos;
+				double floor_draw_length = last_y_wallpos;
 				
 				SDL_Rect plane_pixel;
 				
-				int last_field_plane_height = (double)last_field_height/it->distance * p.dist_player_to_plane + 1;
-				int last_field_rear_edge_plane_y_pos = (double)p.height / ((double)it->distance / p.dist_player_to_plane) + p.plane_y/2 - last_field_plane_height;
+				double last_field_plane_height = (double)last_field_height/it->distance * p.dist_player_to_plane + 1;
+				double last_field_rear_edge_plane_y_pos = (double)p.height / ((double)it->distance / p.dist_player_to_plane) + p.plane_y/2 - last_field_plane_height;
 				plane_pixel.y = last_field_rear_edge_plane_y_pos;
 				last_y_wallpos = last_field_rear_edge_plane_y_pos < floor_draw_length ? last_field_rear_edge_plane_y_pos : last_y_wallpos;
 				
-				if (wall_found) plane_pixel.y++; //overdrawing prevention
 				
 				plane_pixel.w = 1;
 				plane_pixel.h = 1;
@@ -382,23 +409,33 @@ void cast_rays(Player& p, Map& m, Textures& t, SDL_Renderer* renderer) {
 				
 				
 				for (int y = plane_pixel.y; y < floor_draw_length; y++) {
-					int straight_distance_to_floor = ((double)(p.height - last_field_height)/ (y - Player::plane_y/2)) * p.dist_player_to_plane;
-					int cos_angle = p.angle - current_angle;
+					
+					double straight_distance_to_floor = ((double)(p.height - last_field_height)/ (y - Player::plane_y/2)) * p.dist_player_to_plane;
+					double cos_angle = p.angle - current_angle;
 					cos_angle = cos_angle < 0 ? -cos_angle : cos_angle;
-					int actual_distance_to_floor = (double)straight_distance_to_floor / Data::get_cos_val(cos_angle);
+					double actual_distance_to_floor = (double)straight_distance_to_floor / Data::get_cos_val(cos_angle);
 					
 					SDL_Rect texture_pixel;
 					texture_pixel.w = 1;
 					texture_pixel.h = 1;
 					
+					
 					texture_pixel.x = (int)(p.pos_x - actual_distance_to_floor * Data::get_cos_val(current_angle)) % Field::width;
 					texture_pixel.y = (int)(p.pos_y - actual_distance_to_floor * Data::get_sin_val(current_angle)) % Field::height;
 					
-					if (plane_pixel.y * Data::render_size_x + plane_pixel.x >= 0 && plane_pixel.y * Data::render_size_x + plane_pixel.x <= Data::render_size_x * Data::render_size_y) {
+					
+					if (plane_pixel.y * Data::render_size_x + plane_pixel.x >= 0 && plane_pixel.y * Data::render_size_x + plane_pixel.x < Data::render_size_x * Data::render_size_y) {
+						
 						floor_pixels[plane_pixel.y * Data::render_size_x + plane_pixel.x] = t.forest_floor_texdata.color_values[texture_pixel.y * 64 + texture_pixel.x];
+						
+						if (Data::shader_activated) {
+							t.shade_pixel(&floor_pixels[plane_pixel.y * Data::render_size_x + plane_pixel.x], straight_distance_to_floor);
+						}
+						
 					}
 					
 					plane_pixel.y++;
+					
 				}
 				
 			}
@@ -408,44 +445,9 @@ void cast_rays(Player& p, Map& m, Textures& t, SDL_Renderer* renderer) {
 			
 		}
 		
-		/*
-		
-		
-		//draw floor
-		SDL_Rect plane_pixel;
-		plane_pixel.w = 1;
-		plane_pixel.h = 1;
-		plane_pixel.x = x;
-		plane_pixel.y = r_dest.y + r_dest.h;
-		
-		for (int n = plane_pixel.y; n < last_y_pos; n++) {
-			
-			int straight_distance_to_floor = ((double)Player::height / (n - Player::plane_y/2)) * p.dist_player_to_plane;
-			int cos_angle = p.angle - current_angle;
-			cos_angle = cos_angle < 0 ? -cos_angle : cos_angle;
-			int actual_distance_to_floor = (double)straight_distance_to_floor / Data::get_cos_val(cos_angle);
-			
-			SDL_Rect texture_pixel;
-			texture_pixel.w = 1;
-			texture_pixel.h = 1;
-			
-			texture_pixel.x = (int)(p.pos_x - actual_distance_to_floor * Data::get_cos_val(current_angle)) % Field::width;
-			texture_pixel.y = (int)(p.pos_y - actual_distance_to_floor * Data::get_sin_val(current_angle)) % Field::height;
-			
-			
-			if (plane_pixel.y * Data::render_size_x + plane_pixel.x >= 0 && plane_pixel.y * Data::render_size_x + plane_pixel.x <= Data::render_size_x * Data::render_size_y) {
-				floor_pixels[plane_pixel.y * Data::render_size_x + plane_pixel.x] = t.forest_floor_texdata.color_values[texture_pixel.y * 64 + texture_pixel.x];
-			}
-			
-			plane_pixel.y++;
-			
-		}
-		
-		last_y_pos = r_dest.y;
-		*/
 		
 		current_angle += (double)Player::field_of_view/Player::plane_x;
-		current_angle = current_angle > 360 ? current_angle - 360 : current_angle;
+		current_angle = current_angle >= 360 ? current_angle - 360 : current_angle;
 	}
 	
 	SDL_Surface *temp = SDL_CreateRGBSurface(0, Data::render_size_x, Data::render_size_y, 32, 0, 0, 0, 0);
@@ -546,7 +548,7 @@ void handle_input (SDL_Event& e, Player& p) {
 				if (Player::plane_y < 700) Player::plane_y += (Data::render_size_y/2 - y)/ (20./Debugger::ms_per_frame);
 				
 			} else if (y > Data::render_size_y/2) {
-				if (Player::plane_y > -120) Player::plane_y -= (y - Data::render_size_y/2)/ (20./Debugger::ms_per_frame);
+				if (Player::plane_y > -280) Player::plane_y -= (y - Data::render_size_y/2)/ (20./Debugger::ms_per_frame);
 				//Player::plane_y = Player::plane_y < 0 ? 0 : Player::plane_y;
 			}
 			
@@ -562,6 +564,7 @@ void handle_input (SDL_Event& e, Player& p) {
 			
 		}
 		//cout << p.angle << endl;
+		//cout << p.pos_x << " " << p.pos_y << endl;
 		
 	}
 }
