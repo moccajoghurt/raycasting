@@ -28,9 +28,11 @@ TTF_Font* Debugger::font = NULL;
 //double Data::sin_vals[3600000];
 //double Data::tan_vals[3600000];
 int Player::plane_y = 200;
-int Player::height = 32;
+int Player::height = 40;
+bool Player::jumping = false;
+int Player::jump_counter = 0;
 
-bool Data::shader_activated = true;
+bool Data::shader_activated = false;
 
 int main(int argc, char** argv) {
 	
@@ -79,27 +81,31 @@ int main(int argc, char** argv) {
 	Map m;
 	
 	for (int i = 0; i < m.field_num_x; i++) {
-		m.map[i][0].wall = true;
 		m.map[i][0].size = 128;
-		m.map[0][i].wall = true;
 		m.map[0][i].size = 128;
+		
+		/*
+		m.map[i][1].wall = true;
+		m.map[i][1].size = 128;
+		m.map[1][i].wall = true;
+		m.map[1][i].size = 128;
+		*/
 		
 		if (i == m.field_num_x - 1) {
 			for (int n = 0; n < m.field_num_x; n++) {
-				m.map[i][n].wall = true;
 				m.map[i][n].size = 128;
-				m.map[n][i].wall = true;
+				m.map[n][i].size = 128;
+				
+				m.map[i][n].size = 128;
 				m.map[n][i].size = 128;
 			}
 		}
 	}
 	
-	m.map[10][10].wall = true;
-	m.map[11][11].wall = true;
+	
 	m.map[10][10].size = 25;
 	m.map[11][11].size = 25;
 	
-	m.map[13][10].wall = true;
 	m.map[13][10].size = 40;
 	
 	m.map[2][2].size = 10;
@@ -107,6 +113,9 @@ int main(int argc, char** argv) {
 	m.map[2][4].size = 30;
 	m.map[2][5].size = 40;
 	m.map[2][6].size = 50;
+	m.map[2][7].size = 50;
+	m.map[2][8].size = 50;
+	m.map[2][9].size = 50;
 	
 	
 	
@@ -117,6 +126,7 @@ int main(int argc, char** argv) {
 		
 		handle_input(e, p);
 		p.move(m);
+		p.handle_jumping();
 		SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
 		SDL_RenderClear(renderer);
 		draw_sky(renderer, p, t);
@@ -302,7 +312,7 @@ void cast_rays(Player& p, Map& m, Textures& t, SDL_Renderer* renderer) {
 				distance *= Data::get_cos_val(p.angle - current_angle);
 				distance = distance < 1 ? 1 : distance; //division by 0 forbidden
 				
-				raydata_t rd = {field_pos, current_grid_horizontal_x, distance, &m.map[field_pos.x][field_pos.y]};
+				raydata_t rd = {field_pos, current_grid_horizontal_x, distance, &m.map[field_pos.x][field_pos.y], true};
 				
 				intersections.push_back(rd);
 				
@@ -320,7 +330,7 @@ void cast_rays(Player& p, Map& m, Textures& t, SDL_Renderer* renderer) {
 					distance *= Data::get_cos_val(p.angle - current_angle);
 					distance = distance < 1 ? 1 : distance; //division by 0 forbidden
 					
-					raydata_t rd = {field_pos, current_grid_vertical_y, distance, &m.map[field_pos.x][field_pos.y]};
+					raydata_t rd = {field_pos, current_grid_vertical_y, distance, &m.map[field_pos.x][field_pos.y], false};
 					
 					intersections.push_back(rd);
 					
@@ -336,7 +346,7 @@ void cast_rays(Player& p, Map& m, Textures& t, SDL_Renderer* renderer) {
 		// operator < used by default, shortest distance chosen
 		std::sort( intersections.begin(), intersections.end() );
 		
-		vector<raydata_t>::iterator end = intersections.end();//std::unique( intersections.begin(), intersections.end() );
+		vector<raydata_t>::iterator end = std::unique( intersections.begin(), intersections.end() );
 		
 		
 		int last_field_height = 0;
@@ -348,27 +358,30 @@ void cast_rays(Player& p, Map& m, Textures& t, SDL_Renderer* renderer) {
 			SDL_Rect r_src;
 			
 			
-			r_dest.h = (double)it->field->size/it->distance * p.dist_player_to_plane + 1;
-			r_dest.y = (double)p.height / ((double)it->distance / p.dist_player_to_plane) + (double)p.plane_y/2 - r_dest.h;
+			double h = (double)it->field->size/it->distance * p.dist_player_to_plane + 1;
+			double y = (double)p.height / ((double)it->distance / p.dist_player_to_plane) + (double)p.plane_y/2 - h;
+			r_dest.h = round(h);
+			r_dest.y = round(y);
 			r_dest.w = 1;
 			r_dest.x = x;
 			
 			r_src.w = 1;
 			r_src.h = Field::height; //hier texture eigene height angeben
 			r_src.y = 0;
-			r_src.x = it->x_pos % Field::width;
+			r_src.x = (int)it->x_pos % Field::width;
 			
 			
 			
 			// draw wall
 			bool wall_found = false;
-			if (it->field->size > 0 && r_dest.y < last_y_wallpos && &m.map[(int)p.pos_x][(int)p.pos_y] != it->field) {
-				
+			if (it->field->size > 0 && r_dest.y < last_y_wallpos && it->distance <= Player::view_distance) {
 				
 				if (r_dest.y + r_dest.h > last_y_wallpos) {
 					double percentage = (double)(last_y_wallpos - r_dest.y) / r_dest.h;
 					r_dest.h = last_y_wallpos - r_dest.y;
 					r_src.h *= percentage;
+					//if (r_src.h == 0) r_src.h = 2;
+					//if (r_dest.h == 0) r_dest.h = 2;
 				}
 				
 				
@@ -377,27 +390,35 @@ void cast_rays(Player& p, Map& m, Textures& t, SDL_Renderer* renderer) {
 					int new_range = 255 - 0; 
 					Uint8 dist_weight = 255 - (((it->distance - 0) * new_range) / old_range) + 0;
 					
-					SDL_SetTextureColorMod(t.forest_wall, dist_weight, dist_weight, dist_weight);
+					if (it->horizontal_wall) SDL_SetTextureColorMod(t.forest_wall, dist_weight/2, dist_weight/2, dist_weight/2);
+					else SDL_SetTextureColorMod(t.forest_wall, dist_weight, dist_weight, dist_weight);
+					
+				} else {
+					if (it->horizontal_wall) SDL_SetTextureColorMod(t.forest_wall, 125, 125, 125);
+					else SDL_SetTextureColorMod(t.forest_wall, 255, 255, 255);
 				}
+				
+				
 				
 				SDL_RenderCopy(renderer, t.forest_wall, &r_src, &r_dest);
 				
 				wall_found = true;
+				
 			}
 			
 			
-			
 			//draw floor
-			if (it->field->size != last_field_height || wall_found) {
+			if (it->field->size != last_field_height || wall_found || it == (end-1)) {
 				
 				double floor_draw_length = last_y_wallpos;
 				
 				SDL_Rect plane_pixel;
 				
 				double last_field_plane_height = (double)last_field_height/it->distance * p.dist_player_to_plane + 1;
-				double last_field_rear_edge_plane_y_pos = (double)p.height / ((double)it->distance / p.dist_player_to_plane) + p.plane_y/2 - last_field_plane_height;
+				double last_field_rear_edge_plane_y_pos = (double)p.height / (it->distance / p.dist_player_to_plane) + p.plane_y/2 - last_field_plane_height;
 				plane_pixel.y = last_field_rear_edge_plane_y_pos;
-				last_y_wallpos = last_field_rear_edge_plane_y_pos < floor_draw_length ? last_field_rear_edge_plane_y_pos : last_y_wallpos;
+				
+				if (last_field_rear_edge_plane_y_pos + 2 < floor_draw_length) last_y_wallpos = last_field_rear_edge_plane_y_pos + 2; //+2 to avoid empty space
 				
 				
 				plane_pixel.w = 1;
@@ -408,7 +429,7 @@ void cast_rays(Player& p, Map& m, Textures& t, SDL_Renderer* renderer) {
 				//SDL_RenderDrawLine(renderer, x, plane_pixel.y, x, floor_draw_length);
 				
 				
-				for (int y = plane_pixel.y; y < floor_draw_length; y++) {
+				for (int y = plane_pixel.y; y <= floor_draw_length; y++) {
 					
 					double straight_distance_to_floor = ((double)(p.height - last_field_height)/ (y - Player::plane_y/2)) * p.dist_player_to_plane;
 					double cos_angle = p.angle - current_angle;
@@ -423,13 +444,13 @@ void cast_rays(Player& p, Map& m, Textures& t, SDL_Renderer* renderer) {
 					texture_pixel.x = (int)(p.pos_x - actual_distance_to_floor * Data::get_cos_val(current_angle)) % Field::width;
 					texture_pixel.y = (int)(p.pos_y - actual_distance_to_floor * Data::get_sin_val(current_angle)) % Field::height;
 					
-					
-					if (plane_pixel.y * Data::render_size_x + plane_pixel.x >= 0 && plane_pixel.y * Data::render_size_x + plane_pixel.x < Data::render_size_x * Data::render_size_y) {
+					int pixel = plane_pixel.y * Data::render_size_x + plane_pixel.x;
+					if (pixel >= 0 && pixel < Data::render_size_x * Data::render_size_y) {
 						
-						floor_pixels[plane_pixel.y * Data::render_size_x + plane_pixel.x] = t.forest_floor_texdata.color_values[texture_pixel.y * 64 + texture_pixel.x];
+						floor_pixels[pixel] = t.forest_floor_texdata.color_values[texture_pixel.y * 64 + texture_pixel.x];
 						
 						if (Data::shader_activated) {
-							t.shade_pixel(&floor_pixels[plane_pixel.y * Data::render_size_x + plane_pixel.x], straight_distance_to_floor);
+							t.shade_pixel(&floor_pixels[pixel], straight_distance_to_floor);
 						}
 						
 					}
@@ -494,6 +515,9 @@ void handle_input (SDL_Event& e, Player& p) {
 					break;
 				case SDLK_s: 
 					p.key_s = true;
+					break;
+				case SDLK_SPACE:
+					if (p.jumping == false) p.jumping = true;
 					break;
 				case SDLK_ESCAPE:
 					cout << Debugger::ms_per_frame << " " << 1000/Debugger::ms_per_frame << endl;
