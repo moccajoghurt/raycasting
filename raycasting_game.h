@@ -14,8 +14,8 @@ public:
 	static double sin_vals[];
 	static double tan_vals[] ;
 	
-	static const int render_size_x = 320;
-	static const int render_size_y = 200;
+	static const int render_size_x = 320; //320;
+	static const int render_size_y = 200; //200;
 	
 	static bool shader_activated;
 	
@@ -61,13 +61,11 @@ public:
 
 class Field {
 public:
-	bool wall;
 	int size;
 	static const int width = 64;
 	static const int height = 64;
 	Field() {
-		size = 0;
-		wall = false;
+		size = 1;
 	}
 };
 
@@ -81,16 +79,17 @@ typedef struct raydata_t {
 		return distance < rd.distance;
 	}
 	SDL_Rect field_pos;
-	int x_pos;
+	double x_pos;
 	double distance;
 	Field* field;
+	bool horizontal_wall;
 	
 }raydata_t;
 
 class Map {
 public:
-	static const int field_num_x = 20;
-	static const int field_num_y = 20;
+	static const int field_num_x = 30;
+	static const int field_num_y = 30;
 	Field map[field_num_x][field_num_y];
 };
 
@@ -101,9 +100,13 @@ public:
 	static const int plane_x = Data::render_size_x;
 	static int plane_y;
 	static const int field_of_view = 60;
-	static const int view_depth = 50;
-	static const int view_distance = 3000;
+	static const int view_depth = 30;
+	static const int view_distance = 10000;
 	
+	static int jump_counter;
+	
+	
+	static bool jumping;
 	bool shooting;
 	bool reloading;
 	bool key_w;
@@ -117,6 +120,8 @@ public:
 	int last_direction;
 	
 	Player() {
+		jump_counter = 0;
+		jumping = false;
 		shooting = false;
 		reloading = false;
 		key_w = false;
@@ -128,9 +133,27 @@ public:
 		pos_y = Field::height * 4;
 		last_direction = 0;
 	}
-	
+	void handle_jumping (void) {
+		
+		if (jumping == true) {
+			
+			if (jump_counter < 5) {
+				Player::height += 10;
+				
+			} else if (jump_counter < 10) {
+				Player::height -= 10;
+				
+			} else {
+				jumping = false;
+				jump_counter = -1;
+			}
+			
+			jump_counter++;
+		}
+		
+	}
 	void move(Map& m);
-	bool check_wall_collision(SDL_Rect* r, Map& m);
+	bool check_wall_collision(double x, double y, Map& m);
 };
 
 
@@ -243,51 +266,58 @@ public:
 
 void Player::move(Map& m) {
 	SDL_Rect new_pos;
+	double new_pos_x;
+	double new_pos_y;
 	if (key_w) {
-		//new_pos.x = this->pos_x + (Debugger::ms_per_frame/4) * cos((180 - this->angle) * M_PI / 180);
-		//new_pos.y = this->pos_y + (Debugger::ms_per_frame/4) * sin((360 - this->angle) * M_PI / 180);
-		new_pos.x = this->pos_x - (Debugger::ms_per_frame/4) * cos((this->angle) * M_PI / 180);
-		new_pos.y = this->pos_y - (Debugger::ms_per_frame/4) * sin((this->angle) * M_PI / 180);
-		if (!this->check_wall_collision(&new_pos, m)) {
-			this->pos_x = new_pos.x;
-			this->pos_y = new_pos.y;
+		new_pos_x = this->pos_x - (Debugger::ms_per_frame/4) * cos((this->angle) * M_PI / 180);
+		new_pos_y = this->pos_y - (Debugger::ms_per_frame/4) * sin((this->angle) * M_PI / 180);
+		if (!this->check_wall_collision(new_pos_x, new_pos_y, m)) {
+			this->pos_x = new_pos_x;
+			this->pos_y = new_pos_y;
 		}
 	}
 	if (key_a) {
-		new_pos.x = this->pos_x + (Debugger::ms_per_frame/4) * cos((270 - this->angle) * M_PI / 180);
-		new_pos.y = this->pos_y + (Debugger::ms_per_frame/4) * sin((90 - this->angle) * M_PI / 180);
-		if (!this->check_wall_collision(&new_pos, m)) {
-			this->pos_x = new_pos.x;
-			this->pos_y = new_pos.y;
+		new_pos_x = this->pos_x + (Debugger::ms_per_frame/4) * cos((270 - this->angle) * M_PI / 180);
+		new_pos_y = this->pos_y + (Debugger::ms_per_frame/4) * sin((90 - this->angle) * M_PI / 180);
+		if (!this->check_wall_collision(new_pos_x, new_pos_y, m)) {
+			this->pos_x = new_pos_x;
+			this->pos_y = new_pos_y;
 		}
 	}
 	if (key_s) {
-		new_pos.x = this->pos_x + (Debugger::ms_per_frame/4) * cos((this->angle) * M_PI / 180);
-		new_pos.y = this->pos_y + (Debugger::ms_per_frame/4) * sin((this->angle) * M_PI / 180);
-		if (!this->check_wall_collision(&new_pos, m)) {
-			this->pos_x = new_pos.x;
-			this->pos_y = new_pos.y;
+		new_pos_x = this->pos_x + (Debugger::ms_per_frame/4) * cos((this->angle) * M_PI / 180);
+		new_pos_y = this->pos_y + (Debugger::ms_per_frame/4) * sin((this->angle) * M_PI / 180);
+		if (!this->check_wall_collision(new_pos_x, new_pos_y, m)) {
+			this->pos_x = new_pos_x;
+			this->pos_y = new_pos_y;
 		}
 	}
 	if (key_d) {
-		new_pos.x = this->pos_x + (Debugger::ms_per_frame/4) * cos((90 - this->angle) * M_PI / 180);
-		new_pos.y = this->pos_y + (Debugger::ms_per_frame/4) * sin((270 - this->angle) * M_PI / 180);
-		if (!this->check_wall_collision(&new_pos, m)) {
-			this->pos_x = new_pos.x;
-			this->pos_y = new_pos.y;
+		new_pos_x = this->pos_x + (Debugger::ms_per_frame/4) * cos((90 - this->angle) * M_PI / 180);
+		new_pos_y = this->pos_y + (Debugger::ms_per_frame/4) * sin((270 - this->angle) * M_PI / 180);
+		if (!this->check_wall_collision(new_pos_x, new_pos_y, m)) {
+			this->pos_x = new_pos_x;
+			this->pos_y = new_pos_y;
 		}
 	}
 	
 }
 
-bool Player::check_wall_collision(SDL_Rect* r, Map& m) {
+bool Player::check_wall_collision(double x, double y, Map& m) {
 	
-	if (r->x >= 0 && r->x/Field::width < Map::field_num_x && r->y >= 0 && r->y/Field::height < Map::field_num_y) {
+	if (x >= 0 && x/Field::width < Map::field_num_x && y >= 0 && y/Field::height < Map::field_num_y) {
 	
-		if (m.map[r->x/Field::width][r->y/Field::height].wall) { 
+		if (m.map[(int)x/Field::width][(int)y/Field::height].size - Player::height > -20) {
+			
 			return true ;
 		}
-		else return false;
+		else {
+			if (Player::jumping == false)
+				Player::height = m.map[(int)x/Field::width][(int)y/Field::height].size + 40;
+			//Player::jumping = false;
+			//Player::jump_counter = 0;
+			return false;
+		}
 		
 	} else {
 		return true;
